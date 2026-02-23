@@ -78,6 +78,9 @@ class Node {
     addLine(newLine){
         this.usedLines.push(newLine);
     }
+    setIsPcTurn(isPcTurn){
+        this.isPcTurn = isPcTurn;
+    }
     replaceNode(newNode){
         this.playerPoints = newNode.playerPoints;
         this.pcPoints = newNode.pcPoints;
@@ -226,7 +229,9 @@ function createGameTree(node, curDepth){
                         newNode.setPlayerPoints(node.playerPoints + countIntersections(i, j, newNode.usedLines))
                         newNode.setPcPoints(node.pcPoints)
                     }
+                    //console.log(newNode)
                     node.children.push(newNode)
+                    //console.log(node.children)
                     createGameTree(newNode, curDepth+1)
                 }
             }
@@ -243,7 +248,7 @@ function calculateGameTree(){
     switch(selectedAlg){
         case "minmax": 
             createGameTree(rootNode, 0)
-            //console.log(rootNode)
+            // console.log(rootNode)
             return minmax(rootNode, 0)[0]
 
         case "alpha-beta": 
@@ -253,19 +258,31 @@ function calculateGameTree(){
 }
 
 function minmax(node, curDepth){
-    if (curDepth == maximumDepth) return [node.newLine, node.playerPoints-node.pcPoints]
+    if (curDepth == maximumDepth) return [node.newLine, node.playerPoints, node.pcPoints]
 
     let bestPointDiff = -10000
+    let bestPoints = []
     let bestLine = []
     for(let child of node.children){
-        let[l, pointDiff] = minmax(child, curDepth+1)
-        if(pointDiff > bestPointDiff){
-            bestPointDiff = pointDiff
+        let[l, PP, PCP] = minmax(child, curDepth+1)
+        if(node.isPcTurn && PP-PCP > bestPointDiff){
+            bestPointDiff = PP-PCP
+            bestPoints = [PP, PCP]
+            bestLine = [child.newLine[0], child.newLine[1]]
+        }else if(!node.isPcTurn && PCP-PP > bestPointDiff){
+            bestPointDiff = PCP-PP
+            bestPoints = [PP, PCP]
             bestLine = [child.newLine[0], child.newLine[1]]
         }
 
     }
-    return [bestLine, bestPointDiff]
+    if(node.isPcTurn){
+        console.log(`PC: ${bestPointDiff}`)
+    }else{
+        console.log(`Player: ${bestPointDiff}`)
+    }
+
+    return [bestLine, bestPoints[0], bestPoints[1]]
 }
 
 function alphabeta(){
@@ -398,14 +415,19 @@ function initGame(){
     }
 
     updScore()
-
+    let newNode = new Node(playerPoints, pcPoints, lines, [], false)
     switch(selectedStartPlayer){
         case "human": 
             isPlayerTurn = true
+            rootNode.clear()
+            rootNode.replaceNode(newNode)
             break
 
         case "pc":
             isPlayerTurn = false
+            rootNode.clear()
+            newNode.setIsPcTurn(true)
+            rootNode.replaceNode(newNode)
             chooseNextTurn()
             break
     }
@@ -448,7 +470,6 @@ function drawFrom(x,y){
 
 function drawLoop(){
     ctx.clearRect(0, 0, canvasW, canvasH);
-
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         const from = drawPoints[line[0]]
@@ -509,6 +530,7 @@ function showResults(){
 }
 
 function chooseNextTurn(){
+    rootNode.setUsedLines(lines)
     let chosenPoints = calculateGameTree()
     console.log(`Choosing ${chosenPoints[0]} ${chosenPoints[1]}`)
     makeAMove(chosenPoints[0], chosenPoints[1])
@@ -527,14 +549,20 @@ function makeAMove(from, to){
     let intersects = calculateIntersections(from, to).length
     addFunctionalLine(from, to)
     for(let child of rootNode.children){
-        if(child.newLine == [from, to] || child.newLine == [to, from]){
-            let oldRoot = rootNode
+        if(
+            (child.newLine[0] == from && child.newLine[1] == to) || 
+            (child.newLine[1] == from && child.newLine[0] == to)
+        ){
+            console.log(`root replaced`)
+            // let oldRoot = rootNode
             rootNode.replaceNode(child)
             rootNode.setUsedLines(lines)
-            oldRoot.clear()
-            oldRoot = null
+            // oldRoot.clear()
+            // oldRoot = null
+            //console.log(rootNode)
         }
     }
+    //console.log(rootNode.usedLines)
     if(isPlayerTurn) playerPoints += intersects
     else pcPoints += intersects 
 
